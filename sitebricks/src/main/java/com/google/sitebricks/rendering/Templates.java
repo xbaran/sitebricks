@@ -8,6 +8,7 @@ import com.google.inject.Stage;
 import com.google.sitebricks.Renderable;
 import com.google.sitebricks.StringBuilderRespond;
 import com.google.sitebricks.compiler.Compilers;
+import com.google.sitebricks.routing.PageBook;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -19,13 +20,15 @@ import java.util.concurrent.ConcurrentMap;
 public class Templates {
   private final Compilers compilers;
   private final boolean reloadTemplates;
+  private final PageBook book;
 
   private final ConcurrentMap<Class<?>, Renderable> templates = new MapMaker().makeMap();
 
   @Inject
-  public Templates(Compilers compilers, Stage stage) {
+  public Templates(Compilers compilers, Stage stage, PageBook book) {
     this.compilers = compilers;
     this.reloadTemplates = Stage.DEVELOPMENT == stage;
+    this.book = book;
   }
 
   public void loadAll(Set<Descriptor> templates) {
@@ -40,19 +43,19 @@ public class Templates {
   }
 
   public String render(Class<?> clazz, Object context) {
-    Renderable compiled;
-    if (reloadTemplates) {
-      compiled = compilers.compile(clazz);
+    PageBook.Page page = book.forClass(clazz);
 
-      templates.put(clazz, compiled);
-    } else {
-      compiled = templates.get(clazz);
-    }
-    Preconditions.checkArgument(null != compiled, "No template found attached to: %s", clazz);
+    //could not dispatch as there was no match
+    if (null == page)
+      return null;
 
     StringBuilderRespond respond = new StringBuilderRespond(context);
-    //noinspection ConstantConditions
-    compiled.render(context, respond);
+
+    //final Object instance = page.instantiate();
+
+    //workaround to not get NPE at page.widget()
+    book.get(page.getUri());
+    page.widget().render(context, respond);
 
     return respond.toString();
   }
